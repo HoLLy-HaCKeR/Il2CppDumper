@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,7 +23,7 @@ namespace Il2CppDumper
             this.metadata = metadata;
             this.il2cpp = il2cpp;
             //Il2CppDummyDll
-            var il2CppDummyDll = AssemblyDefinition.ReadAssembly(new MemoryStream(Resource1.Il2CppDummyDll));
+            var il2CppDummyDll = AssemblyDefinition.ReadAssembly(typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"));
             var addressAttribute = il2CppDummyDll.MainModule.Types.First(x => x.Name == "AddressAttribute").Methods.First();
             var fieldOffsetAttribute = il2CppDummyDll.MainModule.Types.First(x => x.Name == "FieldOffsetAttribute").Methods.First();
             var stringType = il2CppDummyDll.MainModule.TypeSystem.String;

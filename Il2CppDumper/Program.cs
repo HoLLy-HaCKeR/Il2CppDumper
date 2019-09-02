@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
-using System.Web.Script.Serialization;
+using Newtonsoft.Json;
 using static Il2CppDumper.DefineConstants;
 
 namespace Il2CppDumper
@@ -14,14 +14,14 @@ namespace Il2CppDumper
     {
         private static Metadata metadata;
         private static Il2Cpp il2cpp;
-        private static Config config = new JavaScriptSerializer().Deserialize<Config>(File.ReadAllText(Application.StartupPath + Path.DirectorySeparatorChar + @"config.json"));
+        private static Config config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(Path.Join(Environment.CurrentDirectory, @"config.json")));
         private static Dictionary<Il2CppMethodDefinition, string> methodModifiers = new Dictionary<Il2CppMethodDefinition, string>();
         private static Dictionary<Il2CppTypeDefinition, int> typeDefImageIndices = new Dictionary<Il2CppTypeDefinition, int>();
 
         static void ShowHelp(string programName)
         {
             Console.WriteLine($"usage: {programName} path/to/global-metadata.dat path/to/libil2cpp.so");
-            Application.ExitThread();
+            Environment.Exit(0);
         }
 
         [STAThread]
@@ -62,32 +62,15 @@ namespace Il2CppDumper
             }
             if (il2cppBytes == null)
             {
-                var ofd = new OpenFileDialog();
-                ofd.Filter = "Il2Cpp binary file|*.*";
-                if (ofd.ShowDialog() == DialogResult.OK)
-                {
-                    il2cppBytes = File.ReadAllBytes(ofd.FileName);
-                    ofd.Filter = "global-metadata|global-metadata.dat";
-                    if (ofd.ShowDialog() == DialogResult.OK)
-                    {
-                        metadataBytes = File.ReadAllBytes(ofd.FileName);
-                    }
-                    else
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    return;
-                }
+                Console.WriteLine("Please pass an Il2CPP binary.");
+                return;
+            }
+            if (Init(il2cppBytes, metadataBytes))
+            {
+                Dump();
             }
             try
             {
-                if (Init(il2cppBytes, metadataBytes))
-                {
-                    Dump();
-                }
             }
             catch (Exception e)
             {
@@ -257,7 +240,7 @@ namespace Il2CppDumper
             Console.WriteLine("Dumping...");
             //Script
             var scriptwriter = new StreamWriter(new FileStream("script.py", FileMode.Create), new UTF8Encoding(false));
-            scriptwriter.WriteLine(Resource1.ida);
+            scriptwriter.WriteLine(new StreamReader(typeof(Program).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.ida.py")).ReadToEnd());
             //dump image
             for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++)
             {
@@ -675,7 +658,13 @@ namespace Il2CppDumper
                     Directory.Delete("DummyDll", true);
                 Directory.CreateDirectory("DummyDll");
                 Directory.SetCurrentDirectory("DummyDll");
-                File.WriteAllBytes("Il2CppDummyDll.dll", Resource1.Il2CppDummyDll);
+
+                using (Stream stream = typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"))
+                using (var ms = new MemoryStream()) {
+                    stream.CopyTo(ms);
+                    File.WriteAllBytes("Il2CppDummyDll.dll", ms.ToArray());
+                }
+
                 var dummy = new DummyAssemblyCreator(metadata, il2cpp);
                 foreach (var assembly in dummy.Assemblies)
                 {

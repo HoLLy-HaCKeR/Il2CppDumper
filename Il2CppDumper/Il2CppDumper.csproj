@@ -1,107 +1,28 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{379715D4-4B7B-41F2-B78A-8B18D86320E2}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Il2CppDumper</RootNamespace>
-    <AssemblyName>Il2CppDumper</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <Copyright>Copyright © Perfare 2016-2019</Copyright>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Mono.Cecil, Version=0.9.6.0, Culture=neutral, PublicKeyToken=0738eb9f132ed756, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>.\Mono.Cecil.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
+    <PackageReference Include="Mono.Cecil" Version="0.9.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="BoyerMooreHorspool.cs" />
-    <Compile Include="Lz4DecoderStream.cs" />
-    <Compile Include="NSO.cs" />
-    <Compile Include="NSOClass.cs" />
-    <Compile Include="SearchSection.cs" />
-    <Compile Include="VersionAttribute.cs" />
-    <Compile Include="Config.cs" />
-    <Compile Include="DummyAssemblyCreator.cs" />
-    <Compile Include="Elf.cs" />
-    <Compile Include="Elf64.cs" />
-    <Compile Include="Elf64Class.cs" />
-    <Compile Include="Il2CppClass.cs" />
-    <Compile Include="Il2Cpp.cs" />
-    <Compile Include="Macho.cs" />
-    <Compile Include="Metadata.cs" />
-    <Compile Include="MetadataClass.cs" />
-    <Compile Include="MyAssemblyResolver.cs" />
-    <Compile Include="PE.cs" />
-    <Compile Include="PEClass.cs" />
-    <Compile Include="PlusSearch.cs" />
-    <Compile Include="Resource1.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resource1.resx</DependentUpon>
-    </Compile>
-    <Compile Include="ArmHelper.cs" />
-    <Compile Include="DefineConstants.cs" />
-    <Compile Include="ElfClass.cs" />
-    <Compile Include="MachoClass.cs" />
-    <Compile Include="MachoFat.cs" />
-    <Compile Include="MyBinaryReader.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Macho64.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="config.json">
+    <None Remove="config.json" />
+    <Content Include="config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="Resource1.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resource1.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
+    <None Remove="Resources\Il2CppDummyDll.dll" />
+    <EmbeddedResource Include="Resources\Il2CppDummyDll.dll" />
+    <None Remove="Resources\ida.py" />
+    <EmbeddedResource Include="Resources\ida.py" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="Resources\Il2CppDummyDll.dll" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
 </Project>
