@@ -70,13 +70,6 @@ namespace Il2CppDumper
             {
                 Dump();
             }
-            try
-            {
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey(true);
         }
@@ -88,63 +81,31 @@ namespace Il2CppDumper
             {
                 throw new Exception("ERROR: Metadata file supplied is not valid metadata file.");
             }
-            float fixedMetadataVersion;
-            var metadataVersion = BitConverter.ToInt32(metadataBytes, 4);
-            if (metadataVersion == 24)
-            {
-                Console.WriteLine("Input Unity version: ");
-                var stringVersion = Console.ReadLine();
-                try
-                {
-                    var versionSplit = Array.ConvertAll(Regex.Replace(stringVersion, @"\D", ".").Split(new[] { "." }, StringSplitOptions.RemoveEmptyEntries), int.Parse);
-                    var unityVersion = new Version(versionSplit[0], versionSplit[1]);
-                    if (unityVersion >= Unity20191)
-                    {
-                        fixedMetadataVersion = 24.2f;
-                    }
-                    else if (unityVersion >= Unity20183)
-                    {
-                        fixedMetadataVersion = 24.1f;
-                    }
-                    else
-                    {
-                        fixedMetadataVersion = metadataVersion;
-                    }
-                }
-                catch
-                {
-                    throw new Exception("You must enter the correct Unity version number");
-                }
-            }
-            else
-            {
-                fixedMetadataVersion = metadataVersion;
-            }
+
+            float fixedMetadataVersion = GetFixedMetadataVersion(metadataBytes);
+
             Console.WriteLine("Initializing metadata...");
             metadata = new Metadata(new MemoryStream(metadataBytes), fixedMetadataVersion);
+            var version = config.ForceIl2CppVersion ? config.ForceVersion : metadata.version;
             //判断il2cpp的magic
             var il2cppMagic = BitConverter.ToUInt32(il2cppBytes, 0);
-            var isElf = false;
-            var isPE = false;
-            var is64bit = false;
-            var isNSO = false;
+            Console.WriteLine("Initializing il2cpp file...");
             switch (il2cppMagic)
             {
                 default:
                     throw new Exception("ERROR: il2cpp file not supported.");
                 case 0x304F534E:
-                    isNSO = true;
-                    is64bit = true;
+                    var nso = new NSO(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
+                    il2cpp = nso.UnCompress();
                     break;
                 case 0x905A4D: //PE
-                    isPE = true;
+                    il2cpp = new PE(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                     break;
                 case 0x464c457f: //ELF
-                    isElf = true;
                     if (il2cppBytes[4] == 2) //ELF64
-                    {
-                        is64bit = true;
-                    }
+                        il2cpp = new Elf64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
+                    else
+                        il2cpp = new Elf(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                     break;
                 case 0xCAFEBABE: //FAT Mach-O
                 case 0xBEBAFECA:
@@ -165,36 +126,14 @@ namespace Il2CppDumper
                     else
                         goto case 0xFEEDFACE;
                 case 0xFEEDFACF: // 64bit Mach-O
-                    is64bit = true;
+                    il2cpp = new Macho64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                     break;
                 case 0xFEEDFACE: // 32bit Mach-O
+                    il2cpp = new Macho(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                     break;
             }
-
             Console.WriteLine("Select Mode: 1.Manual 2.Auto 3.Auto(Plus) 4.Auto(Symbol)");
             var modeKey = Console.ReadKey(true);
-            var version = config.ForceIl2CppVersion ? config.ForceVersion : metadata.version;
-            Console.WriteLine("Initializing il2cpp file...");
-            if (isNSO)
-            {
-                var nso = new NSO(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                il2cpp = nso.UnCompress();
-            }
-            else if (isPE)
-            {
-                il2cpp = new PE(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-            }
-            else if (isElf)
-            {
-                if (is64bit)
-                    il2cpp = new Elf64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                else
-                    il2cpp = new Elf(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-            }
-            else if (is64bit)
-                il2cpp = new Macho64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-            else
-                il2cpp = new Macho(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
             if (modeKey.KeyChar != '1')
             {
                 Console.WriteLine("Searching...");
@@ -232,38 +171,68 @@ namespace Il2CppDumper
             {
                 throw new Exception("ERROR: Can't use this mode to process file, try another mode.");
             }
+
             return true;
+        }
+
+        private static float GetFixedMetadataVersion(byte[] metadataBytes)
+        {
+            var metadataVersion = BitConverter.ToInt32(metadataBytes, 4);
+            if (metadataVersion != 24) return metadataVersion;
+
+            Console.Write("Input Unity version: ");
+            var stringVersion = Console.ReadLine();
+            try {
+                var versionSplit = Array.ConvertAll(Regex.Replace(stringVersion, @"\D", ".").Split(new[] { "." }, StringSplitOptions.RemoveEmptyEntries), int.Parse);
+                var unityVersion = new Version(versionSplit[0], versionSplit[1]);
+                if (unityVersion >= Unity20191) {
+                    return 24.2f;
+                } else if (unityVersion >= Unity20183) {
+                    return 24.1f;
+                } else {
+                    return metadataVersion;
+                }
+            } catch {
+                throw new Exception("You must enter the correct Unity version number");
+            }
         }
 
         private static void Dump()
         {
-            var writer = new StreamWriter(new FileStream("dump.cs", FileMode.Create), new UTF8Encoding(false));
             Console.WriteLine("Dumping...");
+            DumpScript();
+            Console.WriteLine("Done !");
+            //DummyDll
+            if (config.DummyDll) {
+                CreateDummyDll();
+            }
+        }
+
+        private static void DumpScript()
+        {
             //Script
+            var writer = new StreamWriter(new FileStream("dump.cs", FileMode.Create), new UTF8Encoding(false));
             var scriptwriter = new StreamWriter(new FileStream("script.py", FileMode.Create), new UTF8Encoding(false));
             scriptwriter.WriteLine(new StreamReader(typeof(Program).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.ida.py")).ReadToEnd());
+
             //dump image
-            for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++)
-            {
+            for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++) {
                 var imageDef = metadata.imageDefs[imageIndex];
                 writer.Write($"// Image {imageIndex}: {metadata.GetStringFromIndex(imageDef.nameIndex)} - {imageDef.typeStart}\n");
             }
+
             //dump type
-            for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++)
-            {
-                try
-                {
+            for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++) {
+                try {
                     var imageDef = metadata.imageDefs[imageIndex];
                     var typeEnd = imageDef.typeStart + imageDef.typeCount;
-                    for (int idx = imageDef.typeStart; idx < typeEnd; idx++)
-                    {
+                    for (int idx = imageDef.typeStart; idx < typeEnd; idx++) {
                         var typeDef = metadata.typeDefs[idx];
                         typeDefImageIndices.Add(typeDef, imageIndex);
                         var isStruct = false;
                         var isEnum = false;
                         var extends = new List<string>();
-                        if (typeDef.parentIndex >= 0)
-                        {
+                        if (typeDef.parentIndex >= 0) {
                             var parent = il2cpp.types[typeDef.parentIndex];
                             var parentName = GetTypeName(parent);
                             if (parentName == "ValueType")
@@ -273,22 +242,21 @@ namespace Il2CppDumper
                             else if (parentName != "object")
                                 extends.Add(parentName);
                         }
+
                         //implementedInterfaces
-                        if (typeDef.interfaces_count > 0)
-                        {
-                            for (int i = 0; i < typeDef.interfaces_count; i++)
-                            {
+                        if (typeDef.interfaces_count > 0) {
+                            for (int i = 0; i < typeDef.interfaces_count; i++) {
                                 var @interface = il2cpp.types[metadata.interfaceIndices[typeDef.interfacesStart + i]];
                                 extends.Add(GetTypeName(@interface));
                             }
                         }
+
                         writer.Write($"\n// Namespace: {metadata.GetStringFromIndex(typeDef.namespaceIndex)}\n");
                         writer.Write(GetCustomAttribute(imageDef, typeDef.customAttributeIndex, typeDef.token));
                         if (config.DumpAttribute && (typeDef.flags & TYPE_ATTRIBUTE_SERIALIZABLE) != 0)
                             writer.Write("[Serializable]\n");
                         var visibility = typeDef.flags & TYPE_ATTRIBUTE_VISIBILITY_MASK;
-                        switch (visibility)
-                        {
+                        switch (visibility) {
                             case TYPE_ATTRIBUTE_PUBLIC:
                             case TYPE_ATTRIBUTE_NESTED_PUBLIC:
                                 writer.Write("public ");
@@ -308,6 +276,7 @@ namespace Il2CppDumper
                                 writer.Write("protected internal ");
                                 break;
                         }
+
                         if ((typeDef.flags & TYPE_ATTRIBUTE_ABSTRACT) != 0 && (typeDef.flags & TYPE_ATTRIBUTE_SEALED) != 0)
                             writer.Write("static ");
                         else if ((typeDef.flags & TYPE_ATTRIBUTE_INTERFACE) == 0 && (typeDef.flags & TYPE_ATTRIBUTE_ABSTRACT) != 0)
@@ -331,12 +300,10 @@ namespace Il2CppDumper
                         else
                             writer.Write("\n{");
                         //dump field
-                        if (config.DumpField && typeDef.field_count > 0)
-                        {
+                        if (config.DumpField && typeDef.field_count > 0) {
                             writer.Write("\n\t// Fields\n");
                             var fieldEnd = typeDef.fieldStart + typeDef.field_count;
-                            for (var i = typeDef.fieldStart; i < fieldEnd; ++i)
-                            {
+                            for (var i = typeDef.fieldStart; i < fieldEnd; ++i) {
                                 //dump_field(i, idx, i - typeDef.fieldStart);
                                 var fieldDef = metadata.fieldDefs[i];
                                 var fieldType = il2cpp.types[fieldDef.typeIndex];
@@ -344,8 +311,7 @@ namespace Il2CppDumper
                                 writer.Write(GetCustomAttribute(imageDef, fieldDef.customAttributeIndex, fieldDef.token, "\t"));
                                 writer.Write("\t");
                                 var access = fieldType.attrs & FIELD_ATTRIBUTE_FIELD_ACCESS_MASK;
-                                switch (access)
-                                {
+                                switch (access) {
                                     case FIELD_ATTRIBUTE_PRIVATE:
                                         writer.Write("private ");
                                         break;
@@ -363,28 +329,24 @@ namespace Il2CppDumper
                                         writer.Write("protected internal ");
                                         break;
                                 }
-                                if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) != 0)
-                                {
+
+                                if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) != 0) {
                                     writer.Write("const ");
-                                }
-                                else
-                                {
+                                } else {
                                     if ((fieldType.attrs & FIELD_ATTRIBUTE_STATIC) != 0)
                                         writer.Write("static ");
                                     if ((fieldType.attrs & FIELD_ATTRIBUTE_INIT_ONLY) != 0)
                                         writer.Write("readonly ");
                                 }
+
                                 writer.Write($"{GetTypeName(fieldType)} {metadata.GetStringFromIndex(fieldDef.nameIndex)}");
-                                if (fieldDefaultValue != null && fieldDefaultValue.dataIndex != -1)
-                                {
+                                if (fieldDefaultValue != null && fieldDefaultValue.dataIndex != -1) {
                                     var pointer = metadata.GetDefaultValueFromIndex(fieldDefaultValue.dataIndex);
-                                    if (pointer > 0)
-                                    {
+                                    if (pointer > 0) {
                                         var fieldDefaultValueType = il2cpp.types[fieldDefaultValue.typeIndex];
                                         metadata.Position = pointer;
                                         object val = null;
-                                        switch (fieldDefaultValueType.type)
-                                        {
+                                        switch (fieldDefaultValueType.type) {
                                             case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
                                                 val = metadata.ReadBoolean();
                                                 break;
@@ -430,48 +392,45 @@ namespace Il2CppDumper
                                                 writer.Write($" /*Default value offset 0x{pointer:X}*/");
                                                 break;
                                         }
+
                                         if (val is string str)
                                             writer.Write($" = \"{ToEscapedString(str)}\"");
-                                        else if (val is char c)
-                                        {
+                                        else if (val is char c) {
                                             var v = (int)c;
                                             writer.Write($" = '\\x{v:x}'");
-                                        }
-                                        else if (val != null)
+                                        } else if (val != null)
                                             writer.Write($" = {val}");
                                     }
                                 }
+
                                 if (config.DumpFieldOffset)
                                     writer.Write("; // 0x{0:X}\n", il2cpp.GetFieldOffsetFromIndex(idx, i - typeDef.fieldStart, i));
                                 else
                                     writer.Write(";\n");
                             }
                         }
+
                         //dump property
-                        if (config.DumpProperty && typeDef.property_count > 0)
-                        {
+                        if (config.DumpProperty && typeDef.property_count > 0) {
                             writer.Write("\n\t// Properties\n");
                             var propertyEnd = typeDef.propertyStart + typeDef.property_count;
-                            for (var i = typeDef.propertyStart; i < propertyEnd; ++i)
-                            {
+                            for (var i = typeDef.propertyStart; i < propertyEnd; ++i) {
                                 var propertyDef = metadata.propertyDefs[i];
                                 writer.Write(GetCustomAttribute(imageDef, propertyDef.customAttributeIndex, propertyDef.token, "\t"));
                                 writer.Write("\t");
-                                if (propertyDef.get >= 0)
-                                {
+                                if (propertyDef.get >= 0) {
                                     var methodDef = metadata.methodDefs[typeDef.methodStart + propertyDef.get];
                                     writer.Write(GetModifiers(methodDef));
                                     var propertyType = il2cpp.types[methodDef.returnType];
                                     writer.Write($"{GetTypeName(propertyType)} {metadata.GetStringFromIndex(propertyDef.nameIndex)} {{ ");
-                                }
-                                else if (propertyDef.set > 0)
-                                {
+                                } else if (propertyDef.set > 0) {
                                     var methodDef = metadata.methodDefs[typeDef.methodStart + propertyDef.set];
                                     writer.Write(GetModifiers(methodDef));
                                     var parameterDef = metadata.parameterDefs[methodDef.parameterStart];
                                     var propertyType = il2cpp.types[parameterDef.typeIndex];
                                     writer.Write($"{GetTypeName(propertyType)} {metadata.GetStringFromIndex(propertyDef.nameIndex)} {{ ");
                                 }
+
                                 if (propertyDef.get >= 0)
                                     writer.Write("get; ");
                                 if (propertyDef.set >= 0)
@@ -480,13 +439,12 @@ namespace Il2CppDumper
                                 writer.Write("\n");
                             }
                         }
+
                         //dump method
-                        if (config.DumpMethod && typeDef.method_count > 0)
-                        {
+                        if (config.DumpMethod && typeDef.method_count > 0) {
                             writer.Write("\n\t// Methods\n");
                             var methodEnd = typeDef.methodStart + typeDef.method_count;
-                            for (var i = typeDef.methodStart; i < methodEnd; ++i)
-                            {
+                            for (var i = typeDef.methodStart; i < methodEnd; ++i) {
                                 var methodDef = metadata.methodDefs[i];
                                 writer.Write(GetCustomAttribute(imageDef, methodDef.customAttributeIndex, methodDef.token, "\t"));
                                 writer.Write("\t");
@@ -495,8 +453,7 @@ namespace Il2CppDumper
                                 var methodName = metadata.GetStringFromIndex(methodDef.nameIndex);
                                 writer.Write($"{GetTypeName(methodReturnType)} {methodName}(");
                                 var parameterStrs = new List<string>();
-                                for (var j = 0; j < methodDef.parameterCount; ++j)
-                                {
+                                for (var j = 0; j < methodDef.parameterCount; ++j) {
                                     var parameterStr = "";
                                     var parameterDef = metadata.parameterDefs[methodDef.parameterStart + j];
                                     var parameterName = metadata.GetStringFromIndex(parameterDef.nameIndex);
@@ -509,43 +466,37 @@ namespace Il2CppDumper
                                     parameterStr += $"{parameterTypeName} {parameterName}";
                                     parameterStrs.Add(parameterStr);
                                 }
+
                                 writer.Write(string.Join(", ", parameterStrs));
-                                if (config.DumpMethodOffset)
-                                {
+                                if (config.DumpMethodOffset) {
                                     var methodPointer = il2cpp.GetMethodPointer(methodDef.methodIndex, i, imageIndex, methodDef.token);
-                                    if (methodPointer > 0)
-                                    {
+                                    if (methodPointer > 0) {
                                         writer.Write("); // RVA: 0x{0:X} Offset: 0x{1:X}\n", methodPointer, il2cpp.MapVATR(methodPointer));
                                         //Script - method
                                         var name = ToEscapedString(HandleSpecialCharacters(typeName + "$$" + methodName));
                                         scriptwriter.WriteLine($"SetName(0x{methodPointer:X}, '{name}')");
-                                    }
-                                    else
-                                    {
+                                    } else {
                                         writer.Write("); // -1\n");
                                     }
-                                }
-                                else
-                                {
+                                } else {
                                     writer.Write("); \n");
                                 }
                             }
                         }
+
                         writer.Write("}\n");
                     }
-                }
-                catch (Exception e)
-                {
+                } catch (Exception e) {
                     Console.WriteLine("ERROR: Some errors in dumping");
                     writer.Write("/*");
                     writer.Write(e);
                     writer.Write("*/\n}\n");
                 }
             }
+
             scriptwriter.WriteLine("print('Make method name done')");
             //Script - MetadataUsage
-            if (il2cpp.version > 16)
-            {
+            if (il2cpp.version > 16) {
                 scriptwriter.WriteLine("print('Setting MetadataUsage...')");
                 foreach (var i in metadata.metadataUsageDic[1]) //kIl2CppMetadataUsageTypeInfo
                 {
@@ -555,6 +506,7 @@ namespace Il2CppDumper
                     scriptwriter.WriteLine($"SetName(0x{il2cpp.metadataUsages[i.Key]:X}, '{legalName}')");
                     scriptwriter.WriteLine($"idc.MakeComm(0x{il2cpp.metadataUsages[i.Key]:X}, r'{typeName}')");
                 }
+
                 foreach (var i in metadata.metadataUsageDic[2]) //kIl2CppMetadataUsageIl2CppType
                 {
                     var type = il2cpp.types[i.Value];
@@ -563,6 +515,7 @@ namespace Il2CppDumper
                     scriptwriter.WriteLine($"SetName(0x{il2cpp.metadataUsages[i.Key]:X}, '{legalName}')");
                     scriptwriter.WriteLine($"idc.MakeComm(0x{il2cpp.metadataUsages[i.Key]:X}, r'{typeName}')");
                 }
+
                 foreach (var i in metadata.metadataUsageDic[3]) //kIl2CppMetadataUsageMethodDef
                 {
                     var methodDef = metadata.methodDefs[i.Value];
@@ -575,6 +528,7 @@ namespace Il2CppDumper
                     var methodPointer = il2cpp.GetMethodPointer(methodDef.methodIndex, (int)i.Value, imageIndex, methodDef.token);
                     scriptwriter.WriteLine($"idc.MakeComm(0x{il2cpp.metadataUsages[i.Key]:X}, r'0x{methodPointer:X}')");
                 }
+
                 foreach (var i in metadata.metadataUsageDic[4]) //kIl2CppMetadataUsageFieldInfo
                 {
                     var fieldRef = metadata.fieldRefs[i.Value];
@@ -586,10 +540,12 @@ namespace Il2CppDumper
                     scriptwriter.WriteLine($"SetName(0x{il2cpp.metadataUsages[i.Key]:X}, '{legalName}')");
                     scriptwriter.WriteLine($"idc.MakeComm(0x{il2cpp.metadataUsages[i.Key]:X}, r'{fieldName}')");
                 }
+
                 foreach (var i in metadata.metadataUsageDic[5]) //kIl2CppMetadataUsageStringLiteral
                 {
                     scriptwriter.WriteLine($"SetString(0x{il2cpp.metadataUsages[i.Key]:X}, r'{ToEscapedString(metadata.GetStringLiteralFromIndex(i.Value))}')");
                 }
+
                 foreach (var i in metadata.metadataUsageDic[6]) //kIl2CppMetadataUsageMethodRef
                 {
                     var methodSpec = il2cpp.methodSpecs[i.Value];
@@ -597,16 +553,14 @@ namespace Il2CppDumper
                     var typeDef = metadata.typeDefs[methodDef.declaringType];
                     var typeName = GetTypeName(typeDef);
                     // Class of the method is generic
-                    if (methodSpec.classIndexIndex != -1)
-                    {
+                    if (methodSpec.classIndexIndex != -1) {
                         var classInst = il2cpp.genericInsts[methodSpec.classIndexIndex];
                         typeName += GetGenericTypeParams(classInst);
                     }
 
                     var methodName = typeName + "." + metadata.GetStringFromIndex(methodDef.nameIndex) + "()";
                     // Method itself is generic
-                    if (methodSpec.methodIndexIndex != -1)
-                    {
+                    if (methodSpec.methodIndexIndex != -1) {
                         var methodInst = il2cpp.genericInsts[methodSpec.methodIndexIndex];
                         methodName += GetGenericTypeParams(methodInst);
                     }
@@ -617,64 +571,62 @@ namespace Il2CppDumper
                     var methodPointer = il2cpp.GetMethodPointer(methodDef.methodIndex, methodSpec.methodDefinitionIndex, imageIndex, methodDef.token);
                     scriptwriter.WriteLine($"idc.MakeComm(0x{il2cpp.metadataUsages[i.Key]:X}, r'0x{methodPointer:X}')");
                 }
+
                 scriptwriter.WriteLine("print('Set MetadataUsage done')");
             }
+
             //Script - MakeFunction
-            if (config.MakeFunction)
-            {
+            if (config.MakeFunction) {
                 List<ulong> orderedPointers;
-                if (il2cpp.version >= 24.2f)
-                {
+                if (il2cpp.version >= 24.2f) {
                     orderedPointers = new List<ulong>();
-                    foreach (var methodPointers in il2cpp.codeGenModuleMethodPointers)
-                    {
+                    foreach (var methodPointers in il2cpp.codeGenModuleMethodPointers) {
                         orderedPointers.AddRange(methodPointers);
                     }
-                }
-                else
-                {
+                } else {
                     orderedPointers = il2cpp.methodPointers.ToList();
                 }
+
                 orderedPointers.AddRange(il2cpp.genericMethodPointers.Where(x => x > 0));
                 orderedPointers.AddRange(il2cpp.invokerPointers);
                 orderedPointers.AddRange(il2cpp.customAttributeGenerators);
                 orderedPointers = orderedPointers.OrderBy(x => x).ToList();
                 scriptwriter.WriteLine("print('Making function...')");
-                for (int i = 0; i < orderedPointers.Count - 1; i++)
-                {
+                for (int i = 0; i < orderedPointers.Count - 1; i++) {
                     scriptwriter.WriteLine($"MakeFunction(0x{orderedPointers[i]:X}, 0x{orderedPointers[i + 1]:X})");
                 }
+
                 scriptwriter.WriteLine("print('Make function done, please wait for IDA to complete the analysis')");
             }
+
             scriptwriter.WriteLine("print('Script finish !')");
             //writer close
             writer.Close();
             scriptwriter.Close();
-            Console.WriteLine("Done !");
-            //DummyDll
-            if (config.DummyDll)
-            {
-                Console.WriteLine("Create DummyDll...");
-                if (Directory.Exists("DummyDll"))
-                    Directory.Delete("DummyDll", true);
-                Directory.CreateDirectory("DummyDll");
-                Directory.SetCurrentDirectory("DummyDll");
+        }
 
-                using (Stream stream = typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"))
-                using (var ms = new MemoryStream()) {
-                    stream.CopyTo(ms);
-                    File.WriteAllBytes("Il2CppDummyDll.dll", ms.ToArray());
-                }
+        private static void CreateDummyDll()
+        {
+            Console.WriteLine("Create DummyDll...");
+            if (Directory.Exists("DummyDll"))
+                Directory.Delete("DummyDll", true);
+            Directory.CreateDirectory("DummyDll");
+            Directory.SetCurrentDirectory("DummyDll");
 
-                var dummy = new DummyAssemblyCreator(metadata, il2cpp);
-                foreach (var assembly in dummy.Assemblies)
-                {
-                    var stream = new MemoryStream();
-                    assembly.Write(stream);
-                    File.WriteAllBytes(assembly.MainModule.Name, stream.ToArray());
-                }
-                Console.WriteLine("Done !");
+            using (Stream stream = typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"))
+            using (var ms = new MemoryStream()) {
+                stream.CopyTo(ms);
+                File.WriteAllBytes("Il2CppDummyDll.dll", ms.ToArray());
             }
+
+            var dummy = new DummyAssemblyCreator(metadata, il2cpp);
+            foreach (var assembly in dummy.Assemblies) {
+                var stream = new MemoryStream();
+                assembly.Write(stream);
+                File.WriteAllBytes(assembly.MainModule.Name, stream.ToArray());
+            }
+
+            Console.WriteLine("Done !");
         }
 
         private static string GetTypeName(Il2CppType type, bool fullName = false)
