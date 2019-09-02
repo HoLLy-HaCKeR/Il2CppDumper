@@ -13,8 +13,6 @@ namespace Il2CppDumper
 {
     class Program
     {
-        private static Metadata metadata;
-        private static Il2Cpp il2cpp;
         private static Config config = JsonConvert.DeserializeObject<Config>(File.ReadAllText(Path.Join(Environment.CurrentDirectory, @"config.json")));
 
         static void ShowHelp(string programName)
@@ -64,15 +62,15 @@ namespace Il2CppDumper
                 Console.WriteLine("Please pass an Il2CPP binary.");
                 return;
             }
-            if (Init(il2cppBytes, metadataBytes))
+            if (Init(il2cppBytes, metadataBytes, out var metadata, out var il2cpp))
             {
-                Dump();
+                Dump(metadata, il2cpp);
             }
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey(true);
         }
 
-        private static bool Init(byte[] il2cppBytes, byte[] metadataBytes)
+        private static bool Init(byte[] il2cppBytes, byte[] metadataBytes, out Metadata metadata, out Il2Cpp il2cpp)
         {
             var sanity = BitConverter.ToUInt32(metadataBytes, 0);
             if (sanity != 0xFAB11BAF)
@@ -89,7 +87,7 @@ namespace Il2CppDumper
             //判断il2cpp的magic
             var il2cppMagic = BitConverter.ToUInt32(il2cppBytes, 0);
             var version = config.ForceIl2CppVersion ? config.ForceVersion : metadata.version;
-            il2cpp = GetIl2Cpp(il2cppBytes, il2cppMagic, version);
+            il2cpp = GetIl2Cpp(il2cppBytes, il2cppMagic, version, metadata);
 
             Console.WriteLine("Select Mode: 1.Manual 2.Auto 3.Auto(Plus) 4.Auto(Symbol)");
             var modeKey = Console.ReadKey(true);
@@ -134,7 +132,7 @@ namespace Il2CppDumper
             return true;
         }
 
-        private static Il2Cpp GetIl2Cpp(byte[] il2cppBytes, uint il2cppMagic, float version)
+        private static Il2Cpp GetIl2Cpp(byte[] il2cppBytes, uint il2cppMagic, float version, Metadata metadata)
         {
             switch (il2cppMagic) {
                 case 0x304F534E:
@@ -196,18 +194,18 @@ namespace Il2CppDumper
             }
         }
 
-        private static void Dump()
+        private static void Dump(Metadata metadata, Il2Cpp il2cpp)
         {
             Console.WriteLine("Dumping...");
             new ScriptGenerator(metadata, il2cpp, config).DumpScript();
             Console.WriteLine("Done !");
             //DummyDll
             if (config.DummyDll) {
-                CreateDummyDll();
+                CreateDummyDll(metadata, il2cpp);
             }
         }
 
-        private static void CreateDummyDll()
+        private static void CreateDummyDll(Metadata metadata, Il2Cpp il2cpp)
         {
             Console.WriteLine("Create DummyDll...");
             if (Directory.Exists("DummyDll"))
