@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Il2CppDumper.ExecutableFormats;
 using Newtonsoft.Json;
 using static Il2CppDumper.DefineConstants;
 

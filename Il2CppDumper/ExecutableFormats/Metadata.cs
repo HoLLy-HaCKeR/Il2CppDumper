@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public sealed class Metadata : MyBinaryReader
     {

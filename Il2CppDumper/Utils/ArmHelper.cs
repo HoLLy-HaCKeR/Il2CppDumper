@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.Utils
 {
     static class ArmHelper
     {

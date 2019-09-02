@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Il2CppDumper.Utils;
 using static Il2CppDumper.ElfConstants;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public sealed class Elf : Il2Cpp
     {

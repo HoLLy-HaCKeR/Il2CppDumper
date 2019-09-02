@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using static Il2CppDumper.ArmHelper;
+using static Il2CppDumper.Utils.ArmHelper;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public sealed class Macho64 : Il2Cpp
     {

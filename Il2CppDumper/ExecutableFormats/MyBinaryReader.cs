@@ -4,7 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public class MyBinaryReader : BinaryReader
     {

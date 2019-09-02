@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public abstract class Il2Cpp : MyBinaryReader
     {

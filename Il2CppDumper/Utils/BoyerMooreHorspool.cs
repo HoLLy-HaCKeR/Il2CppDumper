@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.Utils
 {
     static class BoyerMooreHorspool
     {

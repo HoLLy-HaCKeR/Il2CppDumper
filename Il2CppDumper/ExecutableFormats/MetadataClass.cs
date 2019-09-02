@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Il2CppDumper
+﻿namespace Il2CppDumper.ExecutableFormats
 {
     public class Il2CppGlobalMetadataHeader
     {

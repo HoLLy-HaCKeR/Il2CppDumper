@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using static Il2CppDumper.ElfConstants;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public sealed class Elf64 : Il2Cpp
     {

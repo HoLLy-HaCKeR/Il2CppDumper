@@ -5,7 +5,7 @@
 using System;
 using System.IO;
 
-namespace Lz4
+namespace Il2CppDumper.Utils
 {
     public class Lz4DecoderStream : Stream
     {

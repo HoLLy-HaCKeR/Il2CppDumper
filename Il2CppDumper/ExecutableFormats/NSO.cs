@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using Lz4;
+using Il2CppDumper.Utils;
 
-namespace Il2CppDumper
+namespace Il2CppDumper.ExecutableFormats
 {
     public sealed class NSO : Il2Cpp
     {
