@@ -197,36 +197,15 @@ namespace Il2CppDumper
         private static void Dump(Metadata metadata, Il2Cpp il2cpp)
         {
             Console.WriteLine("Dumping...");
-            new ScriptGenerator(metadata, il2cpp, config).DumpScript();
+            ScriptGenerator.DumpScript(metadata, il2cpp, config);
             Console.WriteLine("Done !");
+
             //DummyDll
             if (config.DummyDll) {
-                CreateDummyDll(metadata, il2cpp);
+                Console.WriteLine("Create DummyDll...");
+                DummyAssemblyCreator.CreateDummyDll(metadata, il2cpp);
+                Console.WriteLine("Done !");
             }
-        }
-
-        private static void CreateDummyDll(Metadata metadata, Il2Cpp il2cpp)
-        {
-            Console.WriteLine("Create DummyDll...");
-            if (Directory.Exists("DummyDll"))
-                Directory.Delete("DummyDll", true);
-            Directory.CreateDirectory("DummyDll");
-            Directory.SetCurrentDirectory("DummyDll");
-
-            using (Stream stream = typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"))
-            using (var ms = new MemoryStream()) {
-                stream.CopyTo(ms);
-                File.WriteAllBytes("Il2CppDummyDll.dll", ms.ToArray());
-            }
-
-            var dummy = new DummyAssemblyCreator(metadata, il2cpp);
-            foreach (var assembly in dummy.Assemblies) {
-                var stream = new MemoryStream();
-                assembly.Write(stream);
-                File.WriteAllBytes(assembly.MainModule.Name, stream.ToArray());
-            }
-
-            Console.WriteLine("Done !");
         }
     }
 }

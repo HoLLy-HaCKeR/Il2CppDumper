@@ -24,6 +24,8 @@ namespace Il2CppDumper
             this.config = config;
         }
 
+        public static void DumpScript(Metadata metadata, Il2Cpp il2cpp, Config config) => new ScriptGenerator(metadata, il2cpp, config).DumpScript();
+
         public void DumpScript()
         {
             //Script

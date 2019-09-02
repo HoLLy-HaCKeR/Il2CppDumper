@@ -19,6 +19,26 @@ namespace Il2CppDumper
         private Dictionary<int, MethodDefinition> methodDefinitionDic = new Dictionary<int, MethodDefinition>();
         private Dictionary<long, GenericParameter> genericParameterDic = new Dictionary<long, GenericParameter>();
 
+        public static void CreateDummyDll(Metadata metadata, Il2Cpp il2cpp)
+        {
+            if (Directory.Exists("DummyDll"))
+                Directory.Delete("DummyDll", true);
+            Directory.CreateDirectory("DummyDll");
+            Directory.SetCurrentDirectory("DummyDll");
+
+            using (Stream stream = typeof(DummyAssemblyCreator).Assembly.GetManifestResourceStream("Il2CppDumper.Resources.Il2CppDummyDll.dll"))
+            using (var ms = new MemoryStream()) {
+                stream.CopyTo(ms);
+                File.WriteAllBytes("Il2CppDummyDll.dll", ms.ToArray());
+            }
+
+            var dummy = new DummyAssemblyCreator(metadata, il2cpp);
+            foreach (var assembly in dummy.Assemblies) {
+                var stream = new MemoryStream();
+                assembly.Write(stream);
+                File.WriteAllBytes(assembly.MainModule.Name, stream.ToArray());
+            }
+        }
 
         public DummyAssemblyCreator(Metadata metadata, Il2Cpp il2cpp)
         {
