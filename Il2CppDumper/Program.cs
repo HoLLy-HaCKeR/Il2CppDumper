@@ -84,36 +84,78 @@ namespace Il2CppDumper
 
             Console.WriteLine("Initializing metadata...");
             metadata = new Metadata(new MemoryStream(metadataBytes), fixedMetadataVersion);
-            var version = config.ForceIl2CppVersion ? config.ForceVersion : metadata.version;
+
+            Console.WriteLine("Initializing il2cpp file...");
             //判断il2cpp的magic
             var il2cppMagic = BitConverter.ToUInt32(il2cppBytes, 0);
-            Console.WriteLine("Initializing il2cpp file...");
-            switch (il2cppMagic)
+            var version = config.ForceIl2CppVersion ? config.ForceVersion : metadata.version;
+            il2cpp = GetIl2Cpp(il2cppBytes, il2cppMagic, version);
+
+            Console.WriteLine("Select Mode: 1.Manual 2.Auto 3.Auto(Plus) 4.Auto(Symbol)");
+            var modeKey = Console.ReadKey(true);
+            if (modeKey.KeyChar != '1')
             {
-                default:
-                    throw new Exception("ERROR: il2cpp file not supported.");
+                Console.WriteLine("Searching...");
+            }
+            try
+            {
+                bool success;
+                switch (modeKey.KeyChar)
+                {
+                    case '1': //Manual
+                        Console.Write("Input CodeRegistration: ");
+                        var codeRegistration = Convert.ToUInt64(Console.ReadLine(), 16);
+                        Console.Write("Input MetadataRegistration: ");
+                        var metadataRegistration = Convert.ToUInt64(Console.ReadLine(), 16);
+                        il2cpp.Init(codeRegistration, metadataRegistration);
+                        success = true;
+                        break;
+                    case '2': //Auto
+                        success = il2cpp.Search();
+                        break;
+                    case '3': //Auto(Plus)
+                        success = il2cpp.PlusSearch(metadata.methodDefs.Count(x => x.methodIndex >= 0), metadata.typeDefs.Length);
+                        break;
+                    case '4': //Auto(Symbol)
+                        success = il2cpp.SymbolSearch();
+                        break;
+                    default:
+                        Console.WriteLine("ERROR: You have to choose a mode.");
+                        return false;
+                }
+                if (!success)
+                    throw new Exception();
+            }
+            catch
+            {
+                throw new Exception("ERROR: Can't use this mode to process file, try another mode.");
+            }
+
+            return true;
+        }
+
+        private static Il2Cpp GetIl2Cpp(byte[] il2cppBytes, uint il2cppMagic, float version)
+        {
+            switch (il2cppMagic) {
                 case 0x304F534E:
                     var nso = new NSO(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                    il2cpp = nso.UnCompress();
-                    break;
+                    return nso.UnCompress();
                 case 0x905A4D: //PE
-                    il2cpp = new PE(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                    break;
+                    return new PE(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                 case 0x464c457f: //ELF
                     if (il2cppBytes[4] == 2) //ELF64
-                        il2cpp = new Elf64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
+                        return new Elf64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                     else
-                        il2cpp = new Elf(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                    break;
+                        return new Elf(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                 case 0xCAFEBABE: //FAT Mach-O
                 case 0xBEBAFECA:
                     var machofat = new MachoFat(new MemoryStream(il2cppBytes));
                     Console.Write("Select Platform: ");
-                    for (var i = 0; i < machofat.fats.Length; i++)
-                    {
+                    for (var i = 0; i < machofat.fats.Length; i++) {
                         var fat = machofat.fats[i];
                         Console.Write(fat.magic == 0xFEEDFACF ? $"{i + 1}.64bit " : $"{i + 1}.32bit ");
                     }
+
                     Console.WriteLine();
                     var key = Console.ReadKey(true);
                     var index = int.Parse(key.KeyChar.ToString()) - 1;
@@ -124,53 +166,12 @@ namespace Il2CppDumper
                     else
                         goto case 0xFEEDFACE;
                 case 0xFEEDFACF: // 64bit Mach-O
-                    il2cpp = new Macho64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                    break;
+                    return new Macho64(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
                 case 0xFEEDFACE: // 32bit Mach-O
-                    il2cpp = new Macho(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
-                    break;
+                    return new Macho(new MemoryStream(il2cppBytes), version, metadata.maxMetadataUsages);
+                default:
+                    throw new Exception("ERROR: il2cpp file not supported.");
             }
-            Console.WriteLine("Select Mode: 1.Manual 2.Auto 3.Auto(Plus) 4.Auto(Symbol)");
-            var modeKey = Console.ReadKey(true);
-            if (modeKey.KeyChar != '1')
-            {
-                Console.WriteLine("Searching...");
-            }
-            try
-            {
-                bool flag;
-                switch (modeKey.KeyChar)
-                {
-                    case '1': //Manual
-                        Console.Write("Input CodeRegistration: ");
-                        var codeRegistration = Convert.ToUInt64(Console.ReadLine(), 16);
-                        Console.Write("Input MetadataRegistration: ");
-                        var metadataRegistration = Convert.ToUInt64(Console.ReadLine(), 16);
-                        il2cpp.Init(codeRegistration, metadataRegistration);
-                        flag = true;
-                        break;
-                    case '2': //Auto
-                        flag = il2cpp.Search();
-                        break;
-                    case '3': //Auto(Plus)
-                        flag = il2cpp.PlusSearch(metadata.methodDefs.Count(x => x.methodIndex >= 0), metadata.typeDefs.Length);
-                        break;
-                    case '4': //Auto(Symbol)
-                        flag = il2cpp.SymbolSearch();
-                        break;
-                    default:
-                        Console.WriteLine("ERROR: You have to choose a mode.");
-                        return false;
-                }
-                if (!flag)
-                    throw new Exception();
-            }
-            catch
-            {
-                throw new Exception("ERROR: Can't use this mode to process file, try another mode.");
-            }
-
-            return true;
         }
 
         private static float GetFixedMetadataVersion(byte[] metadataBytes)
